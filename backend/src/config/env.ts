@@ -5,6 +5,9 @@ import { z } from "zod";
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
 
+  // Frontend URL used for OAuth redirects
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+
   // Redis
   REDIS_HOST: z.string().default("127.0.0.1"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),

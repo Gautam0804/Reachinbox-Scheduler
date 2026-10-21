@@ -6,6 +6,7 @@ import type { ScheduledEmailJob } from "../types/email.js";
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   updateMany: vi.fn(),
+  slackFindUnique: vi.fn(),
   sendMail: vi.fn(),
   reserveSendSlot: vi.fn(),
   indexEmail: vi.fn(),
@@ -23,6 +24,9 @@ vi.mock("../config/prisma.js", () => ({
     scheduledEmail: {
       findUnique: mocks.findUnique,
       updateMany: mocks.updateMany,
+    },
+    slackConnection: {
+      findUnique: mocks.slackFindUnique,
     },
   },
 }));
@@ -65,7 +69,7 @@ function makeJob(): Job<ScheduledEmailJob> {
 describe("processEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
+    mocks.slackFindUnique.mockResolvedValue(null);
     mocks.findUnique.mockResolvedValue({ ...email });
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.sendMail.mockResolvedValue({});

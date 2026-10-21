@@ -13,7 +13,7 @@ const oauthClient = new OAuth2Client(
   env.GOOGLE_CALLBACK_URL,
 );
 
-const FRONTEND_URL = "http://localhost:5173";
+const FRONTEND_URL = env.FRONTEND_URL;
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 type AuthenticatedUser = {

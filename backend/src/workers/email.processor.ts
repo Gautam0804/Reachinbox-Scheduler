@@ -51,7 +51,10 @@ async function markDeliveryUnknown(email: EmailRecord): Promise<void> {
     });
 
     if (result.count > 0) {
-      await tryIndexEmail({ ...email, status: "DELIVERY_UNKNOWN" });
+      await tryIndexEmail({
+        ...email,
+        status: "DELIVERY_UNKNOWN",
+      });
     }
   } catch (error) {
     console.error(
@@ -76,6 +79,20 @@ async function resetBeforeSend(email: EmailRecord): Promise<void> {
   });
 }
 
+async function trySendSlackNotification(
+  ownerGoogleId: string,
+  message: string,
+): Promise<void> {
+  try {
+    await sendSlackNotification(ownerGoogleId, message);
+  } catch (error) {
+    console.error(
+      "Slack notification failed; email delivery remains successful.",
+      error,
+    );
+  }
+}
+
 export async function processEmail(
   job: Job<ScheduledEmailJob>,
 ): Promise<void> {
@@ -93,7 +110,9 @@ export async function processEmail(
   }
 
   if (!existing.ownerGoogleId) {
-    console.error(`Skipping email ${emailId}: no ownerGoogleId is assigned.`);
+    console.error(
+      `Skipping email ${emailId}: no ownerGoogleId is assigned.`,
+    );
     return;
   }
 
@@ -125,7 +144,6 @@ export async function processEmail(
     throw error;
   }
 
-  // Diagnostic logs to investigate delayed emails.
   console.log(
     `[RateLimiter] Email=${emailId}, waitMs=${waitMs}, ` +
       `minIntervalMs=${env.MIN_SEND_INTERVAL_MS}, ` +
@@ -181,9 +199,12 @@ export async function processEmail(
     return;
   }
 
-  await tryIndexEmail({ ...existing, status: "SENT" });
+  await tryIndexEmail({
+    ...existing,
+    status: "SENT",
+  });
 
-  await sendSlackNotification(
+  await trySendSlackNotification(
     existing.ownerGoogleId,
     [
       "✅ *Scheduled email sent successfully!*",

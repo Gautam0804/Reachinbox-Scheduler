@@ -168,7 +168,9 @@ function App() {
 
   const [showCompose, setShowCompose] = useState(false);
 
-
+const [minimumScheduleTime, setMinimumScheduleTime] = useState(() =>
+  toLocalDateTimeInput(new Date(Date.now() + 1_000))
+);
 
   const [recipient, setRecipient] = useState("");
 
@@ -345,10 +347,15 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
+  const timeoutId = window.setTimeout(() => {
     void refreshAll();
-  }, [refreshAll]);
+  }, 0);
 
+  return () => {
+    window.clearTimeout(timeoutId);
+  };
+}, [refreshAll]);
 
 
   const filteredEmails = useMemo(() => {
@@ -397,7 +404,12 @@ function App() {
 
   );
 
-
+function openCompose() {
+  setMinimumScheduleTime(
+    toLocalDateTimeInput(new Date(Date.now() + 1_000))
+  );
+  setShowCompose(true);
+}
 
   function handleGoogleLogin() {
     window.location.href = "/api/auth/google";
@@ -445,13 +457,12 @@ function App() {
 
 
 
-    if (selectedDate.getTime() < Date.now() + 1_000) {
+const now = new Date().getTime();
 
-      setError("Please choose a schedule time at least 1 second in the future.");
-
-      return;
-
-    }
+if (selectedDate.getTime() < now + 1_000) {
+  setError("Please choose a schedule time at least 1 second in the future.");
+  return;
+}
 
 
 
@@ -517,7 +528,9 @@ function App() {
 
       setBody("");
 
-      setScheduledAt(toLocalDateTimeInput(new Date(Date.now() + 5 * 60_000)));
+    const nextScheduleTime = new Date();
+nextScheduleTime.setMinutes(nextScheduleTime.getMinutes() + 5);
+setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
       setShowCompose(false);
 
@@ -803,7 +816,7 @@ function App() {
                   Sign in with Google
                 </button>
               )}
-              <button className="primary-button" onClick={() => setShowCompose(true)}>
+              <button className="primary-button" onClick={openCompose}>
                 <Plus size={17} /> Compose email
               </button>
             </div>
@@ -1299,25 +1312,17 @@ function App() {
 
 
 
-              <label>
+            <label>
+             Schedule time
 
-                Schedule time
-
-                <input
-
-                  required
-
-                  type="datetime-local"
-
-                  min={toLocalDateTimeInput(new Date(Date.now() + 1_000))}
-
-                  value={scheduledAt}
-
-                  onChange={(event) => setScheduledAt(event.target.value)}
-
-                />
-
-              </label>
+            <input
+               required
+               type="datetime-local"
+               min={minimumScheduleTime}
+               value={scheduledAt}
+               onChange={(event) => setScheduledAt(event.target.value)}
+             />
+           </label>
 
 
 

@@ -1,23 +1,26 @@
 # ReachInbox Scheduler
 
-A full-stack email scheduling application that lets users compose emails, schedule delivery for a future date and time, and track scheduled and sent emails from a dashboard.
+A full-stack email scheduling application that allows users to compose emails, schedule delivery for a future date and time, and track scheduled and sent emails through a modern dashboard.
 
 ## Features
 
-- **Email Scheduling:** Compose emails and schedule them for future delivery.
+- **Email Scheduling:** Compose emails and schedule delivery for a future date and time.
 - **Email Dashboard:** View email history and monitor scheduled and sent emails.
 - **Google Authentication:** Sign in using Google OAuth.
 - **Background Processing:** Process scheduled email jobs using BullMQ and Redis.
-- **Email Delivery Testing:** Use Ethereal Email for testing SMTP delivery without sending real emails.
+- **Email Delivery Testing:** Use Ethereal Email to test SMTP delivery without sending emails to real recipients.
 - **Slack Notifications:** Send Slack notifications for supported email events.
-- **Responsive UI:** Modern light dashboard with a responsive layout.
-- **Email Search and Filtering:** Navigate email records using the dashboard's available tabs, search, and pagination.
-- **Job Monitoring:** Bull Board is included for inspecting background jobs.
+- **Responsive UI:** Modern light-themed dashboard with a responsive layout.
+- **Email Search and Filtering:** Navigate email records using dashboard tabs, search, and pagination.
+- **Job Monitoring:** Monitor background jobs using Bull Board.
 - **Database Integration:** Store application data using PostgreSQL and Prisma ORM.
+- **Session-Based Authentication:** Manage authenticated user sessions securely.
+- **Integration Security:** Encrypt stored integration tokens.
 
 ## Tech Stack
 
 ### Frontend
+
 - React
 - TypeScript
 - Vite
@@ -25,49 +28,62 @@ A full-stack email scheduling application that lets users compose emails, schedu
 - Lucide React
 
 ### Backend
+
 - Node.js
-- Express
+- Express.js
 - TypeScript
 - Prisma ORM
 - PostgreSQL
 - Redis
 - BullMQ
 - Nodemailer
-- Google OAuth and session-based authentication
+- Google OAuth
+- Session-Based Authentication
 - Elasticsearch
 - Bull Board
+
+### Development and Infrastructure
+
+- Docker Desktop
+- Docker Compose
+- Ethereal Email for SMTP testing
+- Slack API for notifications
 
 ## Architecture Overview
 
 ```text
-React + TypeScript Frontend
-           |
-           | HTTP API requests
-           v
-    Express Backend
-      |     |      |
-      |     |      +---- Google OAuth / Session
-      |     |
-      |     +----------- PostgreSQL (Prisma)
-      |
-      +----------------- Redis + BullMQ
-                              |
-                              v
-                        Background Worker
-                              |
-                              v
-                        Nodemailer / SMTP
-                              |
-                              v
-                     Email Delivery Provider
+                 React + TypeScript
+                    Frontend
+                       |
+                       | HTTP API Requests
+                       v
+                  Express Backend
+                  /      |       \
+                 /       |        \
+                v        v         v
+          PostgreSQL   Google    Redis
+           (Prisma)    OAuth       |
+                                  BullMQ
+                                    |
+                                    v
+                             Background Worker
+                                    |
+                                    v
+                               Nodemailer
+                                    |
+                                    v
+                              SMTP Provider
 
-Backend / Worker ---> Slack Notifications
+                   Backend / Worker
+                          |
+                          v
+                   Slack Notifications
 ```
 
 ## Project Structure
 
 ```text
-reachinbox-scheduler/
+Reachinbox-Scheduler/
 ├── backend/
 │   ├── src/
 │   ├── prisma/
@@ -75,7 +91,9 @@ reachinbox-scheduler/
 ├── frontend/
 │   ├── src/
 │   └── package.json
-└── docker-compose.yml
+├── docker-compose.yml
+├── .gitignore
+└── README.md
 ```
 
 *Note: The exact files and folders may vary depending on the current project structure.*
@@ -84,33 +102,31 @@ reachinbox-scheduler/
 
 Install the following before running the application:
 
-- Node.js and npm
-- Docker Desktop
-- Git (optional, for version control)
-- Google OAuth credentials for Google sign-in
-- SMTP credentials or Ethereal Email for email testing
+- [Node.js and npm](https://nodejs.org/)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Git](https://git-scm.com/)
+- A Google Cloud project with OAuth credentials for Google sign-in
+- SMTP credentials or an Ethereal Email account for email testing
 - Slack app credentials if Slack notifications are enabled
 
 ## Getting Started
 
-### 1. Clone the repository
+### 1. Clone the Repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd reachinbox-scheduler
+git clone https://github.com/Gautam0804/Reachinbox-Scheduler.git
+cd Reachinbox-Scheduler
 ```
 
-Replace the repository URL with your actual GitHub repository URL.
+### 2. Configure Environment Variables
 
-### 2. Configure environment variables
+Create the required environment files based on the configuration expected by your backend, frontend, and supporting services.
 
-Create the required environment files based on the existing backend and frontend configuration.
-
-Typical configuration may include:
+Depending on the enabled features, configuration may include:
 
 - Database connection URL
 - Redis connection URL
-- Google OAuth client ID and secret
+- Google OAuth client ID and client secret
 - Session secret
 - SMTP host, port, username, and password
 - Slack OAuth credentials
@@ -118,47 +134,67 @@ Typical configuration may include:
 - Frontend origin and backend port
 - Elasticsearch configuration, if enabled
 
-Use the variable names defined in your project. Do not commit `.env` files, passwords, API keys, OAuth secrets, or tokens.
+**Important:** Use the exact environment variable names expected by the application. Refer to the backend configuration and existing environment examples when available.
 
-### 3. Start supporting services
+Never commit `.env` files, passwords, API keys, OAuth secrets, session secrets, or access tokens to GitHub.
 
-From the project root, start the configured Docker services:
+### 3. Start Supporting Services
+
+From the project root, run:
 
 ```bash
 docker compose up -d
 ```
 
-Make sure PostgreSQL and Redis are running before starting the backend and worker.
+Make sure the required services, especially PostgreSQL and Redis, are running before starting the backend and worker.
 
-### 4. Start the backend
+Check their status with:
 
-Open a terminal:
+```bash
+docker compose ps
+```
+
+### 4. Set Up and Start the Backend
+
+Open a terminal in the project root:
 
 ```bash
 cd backend
 npm install
 ```
 
-Run the database migrations or Prisma setup command configured by the project, then start the backend:
+Run the database migration or Prisma setup command configured by the project. For example, if Prisma migrations are already defined:
+
+```bash
+npx prisma migrate deploy
+```
+
+For a local development database where migrations need to be created, follow the project's existing Prisma workflow instead.
+
+Start the backend:
 
 ```bash
 npm run dev
 ```
 
-### 5. Start the background worker
+Keep this terminal running.
 
-Open a **separate terminal**:
+### 5. Start the Background Worker
+
+Open a **separate terminal** in the project root:
 
 ```bash
 cd backend
 npm run worker
 ```
 
-The worker processes scheduled email jobs. Keep it running while testing scheduled delivery.
+The background worker processes scheduled email jobs. Keep it running while testing scheduled email delivery.
 
-### 6. Start the frontend
+Ensure the backend and worker use compatible environment configurations and can connect to Redis and PostgreSQL.
 
-Open another terminal:
+### 6. Install and Start the Frontend
+
+Open another terminal in the project root:
 
 ```bash
 cd frontend
@@ -166,7 +202,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite, commonly:
+Open the local URL printed by Vite. It is commonly:
 
 ```text
 http://localhost:5173
@@ -174,74 +210,134 @@ http://localhost:5173
 
 The frontend development server proxies API requests to the backend according to the Vite configuration.
 
+**Note:** The commands above assume the corresponding npm scripts are configured in each package.
+
 ## How to Use
 
-1. Open the dashboard.
-2. Sign in using Google if authentication is required.
-3. Select **Compose email**.
-4. Enter the recipient, subject, and message.
-5. Choose a future delivery date and time.
-6. Schedule the email.
-7. Check the Scheduled tab to confirm that it appears in the dashboard.
-8. Keep the worker running until the scheduled job is processed.
-9. Check the Sent tab and email history to verify the result.
+1. Start the required Docker services, backend, and background worker.
+2. Open the application in your browser.
+3. Sign in using Google if authentication is required.
+4. Select **Compose Email**.
+5. Enter the recipient's email address, subject, and message.
+6. Select a future delivery date and time.
+7. Schedule the email.
+8. Open the Scheduled tab to verify that the email appears in the dashboard.
+9. Keep the background worker running until the scheduled job is processed.
+10. Check the Sent tab and email history to verify the resulting status.
 
-For development testing, Ethereal Email can provide a preview of test messages. It does not deliver messages to real recipients.
+For development testing, Ethereal Email can provide a preview of test messages. Ethereal is intended for testing and does not deliver messages to real recipients.
 
 ## API Overview
 
-The frontend uses the following existing API routes:
+The frontend uses the following API routes:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/auth/me` | Retrieve the current authenticated user |
-| GET | `/api/auth/google` | Start Google authentication |
+| GET | `/api/auth/me` | Retrieve the currently authenticated user |
+| GET | `/api/auth/google` | Start Google OAuth authentication |
 | POST | `/api/auth/logout` | Log out the current user |
 | GET | `/api/emails` | Retrieve email records |
 | POST | `/api/emails/schedule` | Schedule an email |
 
-Check the backend route definitions for request schemas, response formats, and any additional endpoints.
+Refer to the backend route definitions for request schemas, response formats, validation rules, and additional endpoints.
 
 ## Testing
 
-Run the scripts configured in each package's `package.json`.
+Run the scripts configured in the relevant `package.json` files.
 
-For example, if the corresponding scripts exist:
+For example, if these scripts exist:
+
+### Type Checking
 
 ```bash
-# Frontend type checking
+cd backend
+npx tsc --noEmit
+```
+
+For frontend type checking:
+
+```bash
 cd frontend
 npm run typecheck
+```
 
-# Frontend tests
+### Automated Tests
+
+If a test script is configured:
+
+```bash
 npm test
 ```
 
-Verify the complete workflow:
+### Manual End-to-End Verification
+
+Verify the following workflows:
 
 - Google sign-in and sign-out
-- Email scheduling and validation
+- Email composition and scheduling validation
+- Scheduled email appearing in the dashboard
 - Scheduled-to-sent status updates
-- Dashboard search, tabs, and pagination
-- Slack notifications, when configured
+- Email history, search, tabs, and pagination
+- Background job processing
+- Slack notifications when configured
 - Responsive dashboard and Compose Email modal
 
 ## Security Notes
 
-- Never commit secrets, `.env` files, access tokens, or credentials.
+- Never commit secrets, `.env` files, passwords, access tokens, or credentials.
 - Use a strong session secret and encryption key.
 - Configure OAuth redirect URLs for your own environment.
-- Disable development/test-only rate-limit bypasses in production.
+- Restrict access to background-job monitoring interfaces.
+- Disable development-only rate-limit bypasses and test settings in production.
 - Use production-grade SMTP credentials and secure deployment settings before real-world use.
+- Validate user input and enforce authentication and authorization on protected API routes.
+- Use HTTPS and appropriate cookie security settings in production.
+
+## Troubleshooting
+
+### Backend Cannot Connect to PostgreSQL
+
+- Check that the database container is running.
+- Verify the database connection URL.
+- Confirm that the database is accessible from the backend.
+
+### Scheduled Emails Are Not Sent
+
+- Make sure Redis is running.
+- Confirm that the backend and background worker are running.
+- Check the worker logs for job-processing errors.
+- Verify that the scheduled delivery time has arrived.
+- Confirm that the SMTP or Ethereal Email configuration is correct.
+
+### Google Sign-In Fails
+
+- Verify the Google OAuth client ID and secret.
+- Check the authorized redirect URI in Google Cloud Console.
+- Confirm that the backend callback URL and session configuration match your environment.
+
+### Slack Notifications Fail
+
+- Verify the Slack integration credentials.
+- Confirm that the bot has been added to the target Slack channel.
+- Check the backend or worker logs for Slack API errors.
 
 ## Future Improvements
 
-- Add deployment instructions and a live demo.
-- Add more detailed delivery logs and retry visibility.
-- Improve monitoring and error reporting.
-- Add screenshots and a short demo video.
-- Document production configuration and operational limits.
+- Deploy the application and provide a live demo.
+- Add screenshots and a short demonstration video.
+- Improve delivery logs, retry visibility, and error reporting.
+- Add more comprehensive automated tests.
+- Document production deployment and operational limits.
+- Improve monitoring and observability for scheduled jobs.
 
 ## License
 
-Choose and add a license before distributing this project publicly.
+No license has been specified yet. Add a `LICENSE` file before distributing the project under an open-source license.
+
+## Author
+
+**Gautam Kumar Yadav**
+
+GitHub: [@Gautam0804](https://github.com/Gautam0804)
+
+Project Repository: [ReachInbox Scheduler](https://github.com/Gautam0804/Reachinbox-Scheduler)

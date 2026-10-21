@@ -74,6 +74,11 @@ jobs:
       - name: Check TypeScript
         run: npm run typecheck
 
+      - name: Verify CI test environment
+        run: |
+          node -e "for (const key of ['DATABASE_URL', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM', 'SLACK_TOKEN_ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SESSION_SECRET', 'ADMIN_EMAILS', 'REDIS_URL']) console.log(key + ': ' + (process.env[key] ? 'SET' : 'MISSING'))"
+          node -e "console.log('REDIS_URL:', process.env.REDIS_URL || 'MISSING')"
+
       - name: Run backend tests
         run: npm test
 

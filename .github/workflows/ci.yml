@@ -13,6 +13,46 @@ jobs:
     name: Backend Checks
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reachinbox_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d reachinbox_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/reachinbox_test"
+      SMTP_HOST: "localhost"
+      SMTP_PORT: "1025"
+      SMTP_USER: "test-user"
+      SMTP_PASS: "test-password"
+      EMAIL_FROM: "test@example.com"
+      SLACK_TOKEN_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      GOOGLE_CLIENT_ID: "test-client-id"
+      GOOGLE_CLIENT_SECRET: "test-client-secret"
+      SESSION_SECRET: "test-session-secret-at-least-32-characters-long"
+      ADMIN_EMAILS: "admin@example.com"
+      REDIS_HOST: "127.0.0.1"
+      REDIS_URL: "redis://127.0.0.1:6379"
+
     defaults:
       run:
         working-directory: backend

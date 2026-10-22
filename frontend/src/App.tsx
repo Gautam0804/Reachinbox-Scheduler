@@ -1,7 +1,7 @@
 
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import LoginPage from "./LoginPage";
 
 import {
 
@@ -36,10 +36,15 @@ import {
   ChevronLeft,
 
   ChevronRight,
+  LogOut,
+  ArrowUpDown,
+  CalendarDays,
+  Timer,
 
 } from "lucide-react";
 
 import "./App.css";
+import "./dashboard-3d.css";
 
 
 
@@ -143,6 +148,9 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("Scheduled");
 
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState<"all" | "24h" | "7d">("all");
+  const [sortOrder, setSortOrder] = useState<"soonest" | "latest">("soonest");
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const [emails, setEmails] = useState<Email[]>([]);
 
@@ -358,30 +366,56 @@ useEffect(() => {
 }, [refreshAll]);
 
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => window.clearInterval(timerId);
+  }, []);
+
+  // Search the larger locally cached email set, not just the five rows on the
+  // current server-paginated page. Normal browsing still uses server pagination.
   const filteredEmails = useMemo(() => {
-
     const query = search.trim().toLowerCase();
+    const now = currentTime;
+    const cutoff = dateFilter === "24h"
+      ? now + 24 * 60 * 60 * 1000
+      : dateFilter === "7d"
+        ? now + 7 * 24 * 60 * 60 * 1000
+        : Number.POSITIVE_INFINITY;
+    // Use the full locally cached list whenever searching or filtering dates;
+    // otherwise keep the existing server-paginated page for normal browsing.
+    const sourceEmails = (query || dateFilter !== "all")
+      ? allEmails.filter((email) => activeTab === "Sent"
+          ? email.status === "SENT"
+          : email.status === "SCHEDULED" || email.status === "SENDING")
+      : emails;
 
+    return sourceEmails
+      .filter((email) => {
+        const matchesSearch = !query ||
+          email.recipient.toLowerCase().includes(query) ||
+          email.subject.toLowerCase().includes(query) ||
+          email.body.toLowerCase().includes(query);
+        const scheduledTime = new Date(email.scheduledAt).getTime();
+        const matchesDate = dateFilter === "all" ||
+          (scheduledTime >= now && scheduledTime <= cutoff);
+        return matchesSearch && matchesDate;
+      })
+      .sort((a, b) => {
+        const difference = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+        return sortOrder === "soonest" ? difference : -difference;
+      });
+  }, [emails, allEmails, search, dateFilter, sortOrder, activeTab, currentTime]);
 
-
-    if (!query) return emails;
-
-
-
-    return emails.filter(
-
-      (email) =>
-
-        email.recipient.toLowerCase().includes(query) ||
-
-        email.subject.toLowerCase().includes(query) ||
-
-        email.body.toLowerCase().includes(query),
-
-    );
-
-  }, [emails, search]);
-
+  const upcomingEmails = useMemo(() => {
+    const now = currentTime;
+    return allEmails
+      .filter((email) =>
+        (email.status === "SCHEDULED" || email.status === "SENDING") &&
+        new Date(email.scheduledAt).getTime() >= now
+      )
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .slice(0, 4);
+  }, [allEmails, currentTime]);
 
 
   const counts = useMemo(
@@ -438,6 +472,8 @@ function openCompose() {
     setPage(1);
 
     setSearch("");
+    setDateFilter("all");
+    setSortOrder("soonest");
 
   }
 
@@ -616,6 +652,20 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
 
 
+
+  if (authLoading) {
+    return (
+      <div className="auth-loading-screen" role="status" aria-live="polite">
+        <div className="auth-loading-orbit" aria-hidden="true" />
+        <p>Preparing your universe...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage onGoogleLogin={handleGoogleLogin} />;
+  }
+
   return (
 
     <div className="app-shell">
@@ -746,12 +796,13 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
             </div>
             {user && (
               <button
-                className="icon-button"
+                className="logout-button"
                 onClick={() => void handleLogout()}
                 title="Log out"
                 aria-label="Log out"
               >
-                <Settings size={16} />
+                <LogOut size={16} />
+                <span>Logout</span>
               </button>
             )}
           </div>
@@ -817,7 +868,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                 </button>
               )}
               <button className="primary-button" onClick={openCompose}>
-                <Plus size={17} /> Compose email
+                <CalendarClock size={17} /> Schedule email
               </button>
             </div>
 
@@ -921,7 +972,35 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
           </div>
 
-
+          <section className="upcoming-panel" aria-labelledby="upcoming-title">
+            <div className="upcoming-heading">
+              <div className="upcoming-heading-icon"><Timer size={18} /></div>
+              <div>
+                <h2 id="upcoming-title">Upcoming schedule</h2>
+                <p>Your next emails in delivery order</p>
+              </div>
+              <span className="upcoming-count">{upcomingEmails.length} upcoming</span>
+            </div>
+            {upcomingEmails.length ? (
+              <div className="upcoming-list">
+                {upcomingEmails.map((email, index) => (
+                  <div className="upcoming-item" key={email.id}>
+                    <div className="timeline-marker"><span>{index + 1}</span></div>
+                    <div className="upcoming-email-info">
+                      <strong>{email.subject || "(No subject)"}</strong>
+                      <span>{email.recipient}</span>
+                    </div>
+                    <div className="upcoming-time">
+                      <strong>{new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short" }).format(new Date(email.scheduledAt))}</strong>
+                      <span>{new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(new Date(email.scheduledAt))}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="upcoming-empty"><CalendarClock size={17} /> No upcoming emails. Schedule one to see it here.</div>
+            )}
+          </section>
 
           <section className="email-panel">
 
@@ -995,17 +1074,17 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                 <input
 
-                  placeholder="Search recipient or subject..."
+                  placeholder="Search emails, recipients, or subjects..."
 
                   value={search}
 
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
 
                 />
 
                 {search && (
 
-                  <button className="search-clear" onClick={() => setSearch("")} type="button" aria-label="Clear search">
+                  <button className="search-clear" onClick={() => { setSearch(""); setPage(1); }} type="button" aria-label="Clear search">
 
                     <X size={13} />
 
@@ -1014,6 +1093,24 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                 )}
 
               </label>
+
+              <div className="email-filter-controls" aria-label="Email filters">
+                <label className="filter-select-label">
+                  <CalendarDays size={15} />
+                  <select value={dateFilter} onChange={(event) => { setDateFilter(event.target.value as "all" | "24h" | "7d"); setPage(1); }} aria-label="Filter by schedule time">
+                    <option value="all">All dates</option>
+                    <option value="24h">Next 24 hours</option>
+                    <option value="7d">Next 7 days</option>
+                  </select>
+                </label>
+                <label className="filter-select-label">
+                  <ArrowUpDown size={15} />
+                  <select value={sortOrder} onChange={(event) => { setSortOrder(event.target.value as "soonest" | "latest"); setPage(1); }} aria-label="Sort emails by schedule time">
+                    <option value="soonest">Soonest first</option>
+                    <option value="latest">Latest first</option>
+                  </select>
+                </label>
+              </div>
 
             </div>
 
@@ -1131,7 +1228,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                     <button className="secondary-button" onClick={() => setShowCompose(true)}>
 
-                      <Plus size={15} /> Compose email
+                      <CalendarClock size={15} /> Schedule email
 
                     </button>
 
@@ -1149,7 +1246,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
               <span>
 
-                Showing {filteredEmails.length} of {totalFiltered} emails
+                Showing {filteredEmails.length} of {search.trim() ? filteredEmails.length : totalFiltered} emails
 
               </span>
 
@@ -1161,7 +1258,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   className="icon-button small-icon"
 
-                  disabled={page <= 1 || loading}
+                  disabled={page <= 1 || loading || Boolean(search.trim())}
 
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
 
@@ -1177,7 +1274,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   className="icon-button small-icon"
 
-                  disabled={page >= totalPages || loading}
+                  disabled={page >= totalPages || loading || Boolean(search.trim())}
 
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
 
@@ -1223,8 +1320,8 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
     </div>
 
     <div className="modal-title-text">
-      <h2>Compose email</h2>
-      <p>Prepare a message for scheduled delivery.</p>
+      <h2>Schedule email</h2>
+      <p>Write your message and choose when it should arrive.</p>
     </div>
   </div>
 

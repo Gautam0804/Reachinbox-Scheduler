@@ -35,3 +35,21 @@ model SlackConnection {
 
   @@index([teamId])
 }
+
+model Contact {
+  id            String   @id @default(cuid())
+  ownerGoogleId String
+  email         String
+  firstName     String?
+  lastName      String?
+  company       String?
+  jobTitle      String?
+  notes         String?
+  unsubscribed  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([ownerGoogleId, email])
+  @@index([ownerGoogleId, createdAt])
+  @@index([ownerGoogleId, company])
+}

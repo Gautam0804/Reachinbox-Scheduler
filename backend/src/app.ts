@@ -8,8 +8,10 @@ import { emailRouter } from "./routes/email.routes.js";
 import { searchRouter } from "./routes/search.routes.js";
 import { queueRouter } from "./routes/queue.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
-import { env } from "./config/env.js";
 import { slackRouter } from "./routes/slack.routes.js";
+import { aiWriterRouter } from "./routes/ai-writer.routes.js";
+import { contactRouter } from "./routes/contact.routes.js";
+import { env } from "./config/env.js";
 
 export const app = express();
 
@@ -47,16 +49,21 @@ app.use(
   }),
 );
 
+// Health check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// API routes
 app.use("/api/auth", authRouter);
 app.use("/api/emails", emailRouter);
 app.use("/api/search", searchRouter);
 app.use("/admin/queues", queueRouter);
 app.use("/api/slack", slackRouter);
+app.use("/api/ai", aiWriterRouter);
+app.use("/api/contacts", contactRouter);
 
+// Central error handler
 app.use(
   (
     error: unknown,

@@ -24,3 +24,129 @@ body {
 button, input, textarea, select {
   font: inherit;
 }
+
+.auth-loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  color: #c4b5fd;
+  background:
+    radial-gradient(
+      ellipse at center,
+      #201644 0%,
+      #0b0a1a 55%,
+      #080816 100%
+    );
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.auth-loading-orbit {
+  width: 46px;
+  height: 46px;
+  border: 3px solid #ffffff20;
+  border-top-color: #a78bfa;
+  border-right-color: #818cf8;
+  border-radius: 50%;
+  animation: auth-orbit-spin 0.9s linear infinite;
+}
+
+@keyframes auth-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* ===== 3D SPACE DASHBOARD ===== */
+
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 15% 0%, #35205d55, transparent 40%),
+    radial-gradient(ellipse at 90% 85%, #17255466, transparent 42%),
+    #080816;
+  color: #f4f0ff;
+  perspective: 1200px;
+}
+
+.app-shell button,
+.app-shell [role="button"] {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+.app-shell button:hover,
+.app-shell [role="button"]:hover {
+  transform: translateY(-2px);
+}
+
+/* Elevated glass panels and cards */
+.app-shell .card,
+.app-shell .stat-card,
+.app-shell .dashboard-card,
+.app-shell .panel {
+  position: relative;
+  background: linear-gradient(
+    145deg,
+    rgb(35 30 61 / 92%),
+    rgb(15 15 34 / 96%)
+  );
+  border: 1px solid rgb(167 139 250 / 20%);
+  border-radius: 18px;
+  box-shadow:
+    0 12px 30px rgb(0 0 0 / 24%),
+    0 2px 0 rgb(255 255 255 / 5%) inset,
+    0 0 24px rgb(139 92 246 / 5%);
+  backdrop-filter: blur(16px);
+  transform-style: preserve-3d;
+  transition:
+    transform 250ms ease,
+    box-shadow 250ms ease,
+    border-color 250ms ease;
+}
+
+.app-shell .card:hover,
+.app-shell .stat-card:hover,
+.app-shell .dashboard-card:hover,
+.app-shell .panel:hover {
+  transform: translateY(-5px) rotateX(1deg);
+  border-color: rgb(167 139 250 / 48%);
+  box-shadow:
+    0 22px 42px rgb(0 0 0 / 35%),
+    0 0 28px rgb(139 92 246 / 12%);
+}
+
+/* Inputs */
+.app-shell input,
+.app-shell textarea,
+.app-shell select {
+  background: rgb(13 13 31 / 85%);
+  color: #f4f0ff;
+  border: 1px solid rgb(167 139 250 / 22%);
+  border-radius: 10px;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.app-shell input:focus,
+.app-shell textarea:focus,
+.app-shell select:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgb(167 139 250 / 13%);
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *,
+  .app-shell *::before,
+  .app-shell *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

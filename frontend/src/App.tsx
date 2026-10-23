@@ -1,6 +1,7 @@
 
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import LoginPage from "./LoginPage";
 
 import {
@@ -37,13 +38,12 @@ import {
 
   ChevronRight,
   LogOut,
-  ArrowUpDown,
-  CalendarDays,
-  Timer,
+  Sparkles,
 
 } from "lucide-react";
 
 import "./App.css";
+import "./ai-writer.css";
 import "./dashboard-3d.css";
 
 
@@ -148,9 +148,6 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("Scheduled");
 
   const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState<"all" | "24h" | "7d">("all");
-  const [sortOrder, setSortOrder] = useState<"soonest" | "latest">("soonest");
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const [emails, setEmails] = useState<Email[]>([]);
 
@@ -174,11 +171,19 @@ function App() {
 
   const [notice, setNotice] = useState("");
 
-  const [showCompose, setShowCompose] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvError, setCsvError] = useState("");
+  const [csvNotice, setCsvNotice] = useState("");
+  const [csvResult, setCsvResult] = useState<{
+    totalRows: number;
+    imported: number;
+    invalid: number;
+    duplicatesInFile: number;
+    alreadyExisted: number;
+  } | null>(null);
 
-const [minimumScheduleTime, setMinimumScheduleTime] = useState(() =>
-  toLocalDateTimeInput(new Date(Date.now() + 1_000))
-);
+  const [showCompose, setShowCompose] = useState(false);
 
   const [recipient, setRecipient] = useState("");
 
@@ -186,17 +191,33 @@ const [minimumScheduleTime, setMinimumScheduleTime] = useState(() =>
 
   const [body, setBody] = useState("");
 
-  const [scheduledAt, setScheduledAt] = useState(() =>
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiTone, setAiTone] = useState<"professional" | "friendly" | "formal" | "persuasive">("professional");
+  const [generatingEmail, setGeneratingEmail] = useState(false);
 
-    toLocalDateTimeInput(new Date(Date.now() + 5 * 60_000)),
-
-  );
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
 
 
   const status = activeTab === "Sent" ? "SENT" : "SCHEDULED";
 
+  // Read the clock in an effect, never while React is rendering.
+  // Keeping this value fresh also lets the submit handler validate against a recent time.
+  useEffect(() => {
+    const updateClock = () => {
+      // Reading the clock in an effect/timer is safe; it is not part of render.
+      const now = Date.now();
+      setCurrentTimeMs(now);
+      setScheduledAt((previous) =>
+        previous || toLocalDateTimeInput(new Date(now + 5 * 60_000)),
+      );
+    };
 
+    updateClock();
+    const intervalId = window.setInterval(updateClock, 1_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const fetchEmails = useCallback(async () => {
 
@@ -366,56 +387,30 @@ useEffect(() => {
 }, [refreshAll]);
 
 
-  useEffect(() => {
-    const timerId = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
-    return () => window.clearInterval(timerId);
-  }, []);
-
-  // Search the larger locally cached email set, not just the five rows on the
-  // current server-paginated page. Normal browsing still uses server pagination.
   const filteredEmails = useMemo(() => {
+
     const query = search.trim().toLowerCase();
-    const now = currentTime;
-    const cutoff = dateFilter === "24h"
-      ? now + 24 * 60 * 60 * 1000
-      : dateFilter === "7d"
-        ? now + 7 * 24 * 60 * 60 * 1000
-        : Number.POSITIVE_INFINITY;
-    // Use the full locally cached list whenever searching or filtering dates;
-    // otherwise keep the existing server-paginated page for normal browsing.
-    const sourceEmails = (query || dateFilter !== "all")
-      ? allEmails.filter((email) => activeTab === "Sent"
-          ? email.status === "SENT"
-          : email.status === "SCHEDULED" || email.status === "SENDING")
-      : emails;
 
-    return sourceEmails
-      .filter((email) => {
-        const matchesSearch = !query ||
-          email.recipient.toLowerCase().includes(query) ||
-          email.subject.toLowerCase().includes(query) ||
-          email.body.toLowerCase().includes(query);
-        const scheduledTime = new Date(email.scheduledAt).getTime();
-        const matchesDate = dateFilter === "all" ||
-          (scheduledTime >= now && scheduledTime <= cutoff);
-        return matchesSearch && matchesDate;
-      })
-      .sort((a, b) => {
-        const difference = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
-        return sortOrder === "soonest" ? difference : -difference;
-      });
-  }, [emails, allEmails, search, dateFilter, sortOrder, activeTab, currentTime]);
 
-  const upcomingEmails = useMemo(() => {
-    const now = currentTime;
-    return allEmails
-      .filter((email) =>
-        (email.status === "SCHEDULED" || email.status === "SENDING") &&
-        new Date(email.scheduledAt).getTime() >= now
-      )
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-      .slice(0, 4);
-  }, [allEmails, currentTime]);
+
+    if (!query) return emails;
+
+
+
+    return emails.filter(
+
+      (email) =>
+
+        email.recipient.toLowerCase().includes(query) ||
+
+        email.subject.toLowerCase().includes(query) ||
+
+        email.body.toLowerCase().includes(query),
+
+    );
+
+  }, [emails, search]);
+
 
 
   const counts = useMemo(
@@ -439,11 +434,26 @@ useEffect(() => {
   );
 
 function openCompose() {
-  setMinimumScheduleTime(
-    toLocalDateTimeInput(new Date(Date.now() + 1_000))
-  );
   setShowCompose(true);
 }
+
+  // Keep the dialog attached to the viewport, and prevent background scrolling.
+  useEffect(() => {
+    if (!showCompose) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !submitting) setShowCompose(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showCompose, submitting]);
 
   function handleGoogleLogin() {
     window.location.href = "/api/auth/google";
@@ -465,6 +475,86 @@ function openCompose() {
     }
   }
 
+  async function handleCsvImport(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    // Keep CSV feedback independent from the email composer / dashboard notices.
+    setCsvError("");
+    setCsvNotice("");
+
+    if (!csvFile) {
+      setCsvError("Please choose a CSV file before importing.");
+      return;
+    }
+
+    if (!csvFile.name.toLowerCase().endsWith(".csv")) {
+      setCsvError("Please select a valid .csv file.");
+      return;
+    }
+
+    if (csvFile.size === 0) {
+      setCsvError("The selected CSV file is empty.");
+      return;
+    }
+
+    if (csvFile.size > 2 * 1024 * 1024) {
+      setCsvError("CSV file must be 2 MB or smaller.");
+      return;
+    }
+
+    setCsvImporting(true);
+    setCsvResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", csvFile, csvFile.name);
+
+      const response = await fetch("/api/contacts/import", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      const result = await response.json().catch(() => ({} as Record<string, unknown>));
+
+      if (!response.ok) {
+        const message = typeof result.error === "string"
+          ? result.error
+          : typeof result.message === "string"
+            ? result.message
+            : `CSV import failed (HTTP ${response.status}).`;
+        throw new Error(message);
+      }
+
+      const asCount = (value: unknown): number => {
+        const parsed = typeof value === "number" ? value : Number(value ?? 0);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      };
+
+      setCsvResult({
+        totalRows: asCount(result.totalRows),
+        imported: asCount(result.imported),
+        invalid: asCount(result.invalid),
+        duplicatesInFile: asCount(result.duplicatesInFile),
+        alreadyExisted: asCount(result.alreadyExisted),
+      });
+
+      setCsvNotice(
+        typeof result.message === "string" && result.message.trim()
+          ? result.message
+          : "CSV import completed successfully.",
+      );
+      setCsvFile(null);
+      const fileInput = document.getElementById("csv-contact-file") as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
+    } catch (err) {
+      setCsvResult(null);
+      setCsvError(err instanceof Error ? err.message : "Unable to import CSV contacts.");
+    } finally {
+      setCsvImporting(false);
+    }
+  }
+
   function changeTab(tab: Tab) {
 
     setActiveTab(tab);
@@ -472,12 +562,50 @@ function openCompose() {
     setPage(1);
 
     setSearch("");
-    setDateFilter("all");
-    setSortOrder("soonest");
 
   }
 
 
+
+  async function handleGenerateEmail() {
+    setError("");
+    setNotice("");
+
+    if (aiPrompt.trim().length < 3) {
+      setError("Please describe what your email should be about.");
+      return;
+    }
+
+    setGeneratingEmail(true);
+    try {
+      const response = await fetch("/api/ai/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          purpose: aiPrompt.trim(),
+          tone: aiTone,
+          recipient: recipient.trim(),
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || `Unable to generate email (HTTP ${response.status}).`);
+      }
+      if (typeof result.subject !== "string" || typeof result.body !== "string" || !result.subject.trim() || !result.body.trim()) {
+        throw new Error("The AI returned an invalid draft. Please try again.");
+      }
+
+      setSubject(result.subject);
+      setBody(result.body);
+      setNotice("AI draft generated. Review and edit it before scheduling.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to generate email.");
+    } finally {
+      setGeneratingEmail(false);
+    }
+  }
 
   async function handleSchedule(event: React.FormEvent<HTMLFormElement>) {
 
@@ -489,16 +617,39 @@ function openCompose() {
 
 
 
+    const normalizedRecipient = recipient.trim();
+    const normalizedSubject = subject.trim();
+    const normalizedBody = body.trim();
     const selectedDate = new Date(scheduledAt);
+    // Use the clock state maintained by the effect instead of calling Date.now here.
+    const now = currentTimeMs;
 
+    if (!normalizedRecipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedRecipient)) {
+      setError("Enter a valid recipient email address.");
+      return;
+    }
 
+    if (!normalizedSubject) {
+      setError("Add a subject before scheduling.");
+      return;
+    }
 
-const now = new Date().getTime();
+    if (!normalizedBody) {
+      setError("Write the email message before scheduling.");
+      return;
+    }
 
-if (selectedDate.getTime() < now + 1_000) {
-  setError("Please choose a schedule time at least 1 second in the future.");
-  return;
-}
+    if (Number.isNaN(selectedDate.getTime())) {
+      setError("Choose a valid date and time.");
+      return;
+    }
+
+    // Keep a short safety buffer so the chosen time is still in the future
+    // when the server receives the request.
+    if (selectedDate.getTime() < now + 60_000) {
+      setError("Choose a time at least 1 minute in the future.");
+      return;
+    }
 
 
 
@@ -520,11 +671,11 @@ if (selectedDate.getTime() < now + 1_000) {
 
         body: JSON.stringify({
 
-          recipient: recipient.trim(),
+          recipient: normalizedRecipient,
 
-          subject: subject.trim(),
+          subject: normalizedSubject,
 
-          body: body.trim(),
+          body: normalizedBody,
 
           scheduledAt: selectedDate.toISOString(),
 
@@ -868,7 +1019,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                 </button>
               )}
               <button className="primary-button" onClick={openCompose}>
-                <CalendarClock size={17} /> Schedule email
+                <Plus size={17} /> Compose email
               </button>
             </div>
 
@@ -972,33 +1123,136 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
           </div>
 
-          <section className="upcoming-panel" aria-labelledby="upcoming-title">
-            <div className="upcoming-heading">
-              <div className="upcoming-heading-icon"><Timer size={18} /></div>
+
+
+          <section className="email-panel csv-import-panel">
+            <div className="panel-heading">
               <div>
-                <h2 id="upcoming-title">Upcoming schedule</h2>
-                <p>Your next emails in delivery order</p>
+                <h2>Import leads from CSV</h2>
+                <p>Upload your contacts and import up to 1,000 leads at once.</p>
               </div>
-              <span className="upcoming-count">{upcomingEmails.length} upcoming</span>
             </div>
-            {upcomingEmails.length ? (
-              <div className="upcoming-list">
-                {upcomingEmails.map((email, index) => (
-                  <div className="upcoming-item" key={email.id}>
-                    <div className="timeline-marker"><span>{index + 1}</span></div>
-                    <div className="upcoming-email-info">
-                      <strong>{email.subject || "(No subject)"}</strong>
-                      <span>{email.recipient}</span>
-                    </div>
-                    <div className="upcoming-time">
-                      <strong>{new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short" }).format(new Date(email.scheduledAt))}</strong>
-                      <span>{new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(new Date(email.scheduledAt))}</span>
-                    </div>
-                  </div>
-                ))}
+
+            <form className="csv-import-form" onSubmit={handleCsvImport}>
+              <label className="csv-file-input" htmlFor="csv-contact-file">
+                <span className="csv-file-label">
+                  <Plus size={17} />
+                  Choose CSV file
+                </span>
+                <input
+                  id="csv-contact-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={csvImporting}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0] ?? null;
+                    setCsvFile(null);
+                    setCsvResult(null);
+                    setCsvError("");
+                    setCsvNotice("");
+
+                    if (!file) return;
+                    if (!file.name.toLowerCase().endsWith(".csv")) {
+                      setCsvError("Please select a valid .csv file.");
+                      event.currentTarget.value = "";
+                      return;
+                    }
+                    if (file.size === 0) {
+                      setCsvError("The selected CSV file is empty.");
+                      event.currentTarget.value = "";
+                      return;
+                    }
+                    if (file.size > 2 * 1024 * 1024) {
+                      setCsvError("CSV file must be 2 MB or smaller.");
+                      event.currentTarget.value = "";
+                      return;
+                    }
+                    setCsvFile(file);
+                  }}
+                />
+              </label>
+
+              <div className="csv-file-details">
+                {csvFile ? (
+                  <>
+                    <strong>{csvFile.name}</strong>
+                    <span>{(csvFile.size / 1024).toFixed(1)} KB</span>
+                  </>
+                ) : (
+                  <span>Select a .csv file (maximum 2 MB)</span>
+                )}
               </div>
-            ) : (
-              <div className="upcoming-empty"><CalendarClock size={17} /> No upcoming emails. Schedule one to see it here.</div>
+
+              <button
+                className="primary-button csv-import-button"
+                type="submit"
+                disabled={!csvFile || csvImporting}
+              >
+                {csvImporting ? (
+                  <>
+                    <LoaderCircle size={16} className="spin" />
+                    Importing contacts...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    Import contacts
+                  </>
+                )}
+              </button>
+            </form>
+
+            {csvNotice && (
+              <div className="notice csv-import-feedback" role="status" aria-live="polite">
+                <CheckCircle2 size={17} />
+                <span>{csvNotice}</span>
+                <button className="notice-close" type="button" onClick={() => setCsvNotice("")} aria-label="Dismiss CSV success message">
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+
+            {csvError && (
+              <div className="error-banner csv-import-feedback" role="alert">
+                <AlertCircle size={17} />
+                <span>{csvError}</span>
+                <button className="notice-close" type="button" onClick={() => setCsvError("")} aria-label="Dismiss CSV error">
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+
+            <p className="csv-import-hint">
+              Required column: email. Optional columns: firstName, lastName,
+              company, jobTitle and notes.
+            </p>
+
+            {csvResult && (
+              <div className="csv-import-result" role="status" aria-live="polite">
+                <h3>Import summary</h3>
+                <div className="csv-result-grid">
+                  <div className="csv-result-item">
+                    <span>Rows processed</span>
+                    <strong>{csvResult.totalRows}</strong>
+                  </div>
+                  <div className="csv-result-item">
+                    <span>Imported</span>
+                    <strong>{csvResult.imported}</strong>
+                  </div>
+                  <div className="csv-result-item">
+                    <span>Invalid rows</span>
+                    <strong>{csvResult.invalid}</strong>
+                  </div>
+                  <div className="csv-result-item">
+                    <span>Duplicates in file</span>
+                    <strong>{csvResult.duplicatesInFile}</strong>
+                  </div>
+                  <div className="csv-result-item">
+                    <span>Already existed</span>
+                    <strong>{csvResult.alreadyExisted}</strong>
+                  </div>
+                </div>
+              </div>
             )}
           </section>
 
@@ -1018,7 +1272,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                 className="secondary-button"
 
-                onClick={() => setShowCompose(true)}
+                onClick={openCompose}
 
               >
 
@@ -1074,17 +1328,17 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                 <input
 
-                  placeholder="Search emails, recipients, or subjects..."
+                  placeholder="Search recipient or subject..."
 
                   value={search}
 
-                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                  onChange={(event) => setSearch(event.target.value)}
 
                 />
 
                 {search && (
 
-                  <button className="search-clear" onClick={() => { setSearch(""); setPage(1); }} type="button" aria-label="Clear search">
+                  <button className="search-clear" onClick={() => setSearch("")} type="button" aria-label="Clear search">
 
                     <X size={13} />
 
@@ -1093,24 +1347,6 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                 )}
 
               </label>
-
-              <div className="email-filter-controls" aria-label="Email filters">
-                <label className="filter-select-label">
-                  <CalendarDays size={15} />
-                  <select value={dateFilter} onChange={(event) => { setDateFilter(event.target.value as "all" | "24h" | "7d"); setPage(1); }} aria-label="Filter by schedule time">
-                    <option value="all">All dates</option>
-                    <option value="24h">Next 24 hours</option>
-                    <option value="7d">Next 7 days</option>
-                  </select>
-                </label>
-                <label className="filter-select-label">
-                  <ArrowUpDown size={15} />
-                  <select value={sortOrder} onChange={(event) => { setSortOrder(event.target.value as "soonest" | "latest"); setPage(1); }} aria-label="Sort emails by schedule time">
-                    <option value="soonest">Soonest first</option>
-                    <option value="latest">Latest first</option>
-                  </select>
-                </label>
-              </div>
 
             </div>
 
@@ -1226,9 +1462,13 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   {!search && (
 
-                    <button className="secondary-button" onClick={() => setShowCompose(true)}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={openCompose}
+                    >
 
-                      <CalendarClock size={15} /> Schedule email
+                      <Plus size={15} /> Compose email
 
                     </button>
 
@@ -1246,7 +1486,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
               <span>
 
-                Showing {filteredEmails.length} of {search.trim() ? filteredEmails.length : totalFiltered} emails
+                Showing {filteredEmails.length} of {totalFiltered} emails
 
               </span>
 
@@ -1258,7 +1498,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   className="icon-button small-icon"
 
-                  disabled={page <= 1 || loading || Boolean(search.trim())}
+                  disabled={page <= 1 || loading}
 
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
 
@@ -1274,7 +1514,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   className="icon-button small-icon"
 
-                  disabled={page >= totalPages || loading || Boolean(search.trim())}
+                  disabled={page >= totalPages || loading}
 
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
 
@@ -1306,7 +1546,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
 
 
-      {showCompose && (
+      {showCompose && createPortal((
 
         <div className="modal-backdrop" onClick={() => !submitting && setShowCompose(false)}>
 
@@ -1320,8 +1560,8 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
     </div>
 
     <div className="modal-title-text">
-      <h2>Schedule email</h2>
-      <p>Write your message and choose when it should arrive.</p>
+      <h2>Compose email</h2>
+      <p>Prepare a message for scheduled delivery.</p>
     </div>
   </div>
 
@@ -1338,6 +1578,52 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
 
             <form onSubmit={handleSchedule}>
+              <section className="ai-writer-panel" aria-labelledby="ai-writer-title">
+                <div className="ai-writer-heading">
+                  <Sparkles size={18} aria-hidden="true" />
+                  <div>
+                    <strong id="ai-writer-title">AI Email Writer</strong>
+                    <p>Describe your email and AI will create a draft for you.</p>
+                  </div>
+                </div>
+
+                <label>
+                  What should this email be about?
+                  <textarea
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="e.g. Write a professional follow-up after my interview."
+                    value={aiPrompt}
+                    onChange={(event) => setAiPrompt(event.target.value)}
+                    disabled={generatingEmail || submitting}
+                  />
+                </label>
+
+                <label>
+                  Writing tone
+                  <select
+                    value={aiTone}
+                    onChange={(event) => setAiTone(event.target.value as "professional" | "friendly" | "formal" | "persuasive")}
+                    disabled={generatingEmail || submitting}
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="formal">Formal</option>
+                    <option value="persuasive">Persuasive</option>
+                  </select>
+                </label>
+
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => void handleGenerateEmail()}
+                  disabled={generatingEmail || submitting || !aiPrompt.trim()}
+                >
+                  {generatingEmail ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}
+                  {generatingEmail ? "Generating draft..." : "Generate email"}
+                </button>
+                <p className="ai-writer-hint">The generated subject and message appear below. Review and edit them before scheduling.</p>
+              </section>
 
               <label>
 
@@ -1356,6 +1642,8 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                   value={recipient}
 
                   onChange={(event) => setRecipient(event.target.value)}
+
+                  disabled={submitting}
 
                 />
 
@@ -1378,6 +1666,8 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
                   value={subject}
 
                   onChange={(event) => setSubject(event.target.value)}
+
+                  disabled={submitting}
 
                 />
 
@@ -1403,6 +1693,8 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   onChange={(event) => setBody(event.target.value)}
 
+                  disabled={submitting}
+
                 />
 
               </label>
@@ -1415,20 +1707,36 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
             <input
                required
                type="datetime-local"
-               min={minimumScheduleTime}
+               min={currentTimeMs ? toLocalDateTimeInput(new Date(currentTimeMs + 60_000)) : undefined}
                value={scheduledAt}
                onChange={(event) => setScheduledAt(event.target.value)}
+               disabled={submitting}
              />
            </label>
 
-
+              <div className="schedule-preview" aria-live="polite">
+                <div className="schedule-preview-icon"><CalendarClock size={18} /></div>
+                <div className="schedule-preview-copy">
+                  <strong>Delivery time</strong>
+                  <span>
+                    {Number.isNaN(new Date(scheduledAt).getTime())
+                      ? "Choose a valid date and time"
+                      : new Date(scheduledAt).toLocaleString([], {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                  </span>
+                  <small>Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone || "Local time"}</small>
+                </div>
+              </div>
 
               <div className="form-hint">
-
                 <Clock3 size={14} />
-
-                Choose a future date and time for delivery.
-
+                Schedule at least one minute ahead. Keep this app's worker and backend running for delivery.
               </div>
 
 
@@ -1457,7 +1765,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
                   type="submit"
 
-                  disabled={submitting}
+                  disabled={submitting || !recipient.trim() || !subject.trim() || !body.trim()}
 
                 >
 
@@ -1483,7 +1791,7 @@ setScheduledAt(toLocalDateTimeInput(nextScheduleTime));
 
         </div>
 
-      )}
+      ), document.body)}
 
     </div>
 

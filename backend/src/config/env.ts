@@ -60,6 +60,9 @@ const envSchema = z.object({
   // Application session
   SESSION_SECRET: z.string().min(32),
 
+  GEMINI_API_KEY: z.string().min(1),
+GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+
   // Bull Board admin access: comma-separated email addresses
   ADMIN_EMAILS: z.string().min(1),
 

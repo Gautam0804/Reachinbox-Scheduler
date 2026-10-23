@@ -52,7 +52,8 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   ScheduledEmail: 'ScheduledEmail',
-  SlackConnection: 'SlackConnection'
+  SlackConnection: 'SlackConnection',
+  Contact: 'Contact'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -98,6 +99,23 @@ export const SlackConnectionScalarFieldEnum = {
 } as const
 
 export type SlackConnectionScalarFieldEnum = (typeof SlackConnectionScalarFieldEnum)[keyof typeof SlackConnectionScalarFieldEnum]
+
+
+export const ContactScalarFieldEnum = {
+  id: 'id',
+  ownerGoogleId: 'ownerGoogleId',
+  email: 'email',
+  firstName: 'firstName',
+  lastName: 'lastName',
+  company: 'company',
+  jobTitle: 'jobTitle',
+  notes: 'notes',
+  unsubscribed: 'unsubscribed',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContactScalarFieldEnum = (typeof ContactScalarFieldEnum)[keyof typeof ContactScalarFieldEnum]
 
 
 export const SortOrder = {

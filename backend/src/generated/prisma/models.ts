@@ -10,4 +10,5 @@
  */
 export type * from './models/ScheduledEmail.js'
 export type * from './models/SlackConnection.js'
+export type * from './models/Contact.js'
 export type * from './commonInputTypes.js'

@@ -51,3 +51,8 @@ export type ScheduledEmail = Prisma.ScheduledEmailModel
  * 
  */
 export type SlackConnection = Prisma.SlackConnectionModel
+/**
+ * Model Contact
+ * 
+ */
+export type Contact = Prisma.ContactModel

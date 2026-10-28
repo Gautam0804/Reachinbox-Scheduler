@@ -1,6 +1,7 @@
 
 <h1 align="center">📬 ReachInbox Scheduler</h1>
 
+
 <p align="center">
   <b>Compose an email, pick a future date and time, and let a background worker deliver it.</b><br/>
   A full-stack email scheduling app with Google sign-in, Redis-backed job queues, and a live dashboard.

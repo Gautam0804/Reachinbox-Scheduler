@@ -1,5 +1,6 @@
 
 import express from "express";
+import cors from "cors";
 import session from "express-session";
 import { createClient } from "redis";
 import { RedisStore } from "connect-redis";
@@ -20,6 +21,31 @@ export const app = express();
 // --------------------------------------------------
 
 app.set("trust proxy", 1);
+
+// --------------------------------------------------
+// CORS configuration
+// --------------------------------------------------
+
+const allowedOrigins = [
+  "https://reachinbox-frontend-0ag8.onrender.com",
+];
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow requests without an Origin header, such as health checks.
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 // --------------------------------------------------
 // Redis configuration
@@ -88,12 +114,12 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  maxAge: 1000 * 60 * 60 * 24,
-  path: "/",
-},
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24,
+      path: "/",
+    },
   }),
 );
 
@@ -130,6 +156,16 @@ app.use(
     res: express.Response,
     _next: express.NextFunction,
   ) => {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("CORS blocked origin:")
+    ) {
+      res.status(403).json({
+        error: "Origin not allowed.",
+      });
+      return;
+    }
+
     console.error("Unhandled API error:", error);
 
     res.status(500).json({

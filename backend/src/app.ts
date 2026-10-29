@@ -21,9 +21,6 @@ const sessionRedisClient = createClient({
   url:
     env.REDIS_URL ??
     `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`,
-  socket: env.REDIS_URL?.startsWith("rediss://")
-    ? { tls: true }
-    : undefined,
 });
 
 sessionRedisClient.on("error", (error) => {

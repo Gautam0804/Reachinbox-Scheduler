@@ -8,7 +8,8 @@ const envSchema = z.object({
   // Frontend URL used for OAuth redirects
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
 
-  // Redis
+    // Redis
+  REDIS_URL: z.string().url().optional(),
   REDIS_HOST: z.string().default("127.0.0.1"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
 

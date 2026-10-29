@@ -24,10 +24,19 @@ const sessionRedisClient = createClient({
 });
 
 sessionRedisClient.on("error", (error) => {
-  console.error("Session Redis error:", error);
+  console.error("Session Redis error:", error.message);
 });
 
-await sessionRedisClient.connect();
+try {
+  await sessionRedisClient.connect();
+  console.log("Session Redis connected successfully.");
+} catch (error) {
+  console.error(
+    "Session Redis connection failed:",
+    error instanceof Error ? error.message : "Unknown error",
+  );
+  throw error;
+}
 
 const sessionStore = new RedisStore({
   client: sessionRedisClient,

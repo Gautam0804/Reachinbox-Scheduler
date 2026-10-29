@@ -15,8 +15,15 @@ import { env } from "./config/env.js";
 
 export const app = express();
 
+// Redis client for session storage.
+// Uses Upstash REDIS_URL in production and local host/port otherwise.
 const sessionRedisClient = createClient({
-  url: `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`,
+  url:
+    env.REDIS_URL ??
+    `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`,
+  socket: env.REDIS_URL?.startsWith("rediss://")
+    ? { tls: true }
+    : undefined,
 });
 
 sessionRedisClient.on("error", (error) => {

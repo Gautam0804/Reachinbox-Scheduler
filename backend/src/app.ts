@@ -16,17 +16,31 @@ import { env } from "./config/env.js";
 export const app = express();
 
 // Redis client for session storage.
-// Uses Upstash REDIS_URL in production and local host/port otherwise.
+// Uses Upstash REDIS_URL in production and local Redis otherwise.
 const sessionRedisClient = createClient({
   url:
     env.REDIS_URL ??
     `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`,
 });
 
+// Log Redis errors without exposing credentials.
 sessionRedisClient.on("error", (error) => {
   console.error("Session Redis error:", error.message);
 });
 
+// Diagnostic: log connection details without username/password.
+const redisUrl = env.REDIS_URL
+  ? new URL(env.REDIS_URL)
+  : null;
+
+console.log("Redis config:", {
+  configured: Boolean(redisUrl),
+  protocol: redisUrl?.protocol ?? "redis:",
+  host: redisUrl?.hostname ?? env.REDIS_HOST,
+  port: redisUrl?.port || env.REDIS_PORT,
+});
+
+// Establish Redis connection before initializing session storage.
 try {
   await sessionRedisClient.connect();
   console.log("Session Redis connected successfully.");
@@ -35,14 +49,17 @@ try {
     "Session Redis connection failed:",
     error instanceof Error ? error.message : "Unknown error",
   );
+
   throw error;
 }
 
+// Redis-backed session store.
 const sessionStore = new RedisStore({
   client: sessionRedisClient,
   prefix: "reachinbox:sess:",
 });
 
+// Middleware.
 app.use(express.json({ limit: "1mb" }));
 
 app.use(
@@ -62,12 +79,14 @@ app.use(
   }),
 );
 
-// Health check
+// Health check.
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.status(200).json({
+    status: "ok",
+  });
 });
 
-// API routes
+// API routes.
 app.use("/api/auth", authRouter);
 app.use("/api/emails", emailRouter);
 app.use("/api/search", searchRouter);
@@ -76,7 +95,7 @@ app.use("/api/slack", slackRouter);
 app.use("/api/ai", aiWriterRouter);
 app.use("/api/contacts", contactRouter);
 
-// Central error handler
+// Central error handler.
 app.use(
   (
     error: unknown,

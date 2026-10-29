@@ -1,3 +1,4 @@
+
 import { Router } from "express";
 import type { Request } from "express";
 import { OAuth2Client } from "google-auth-library";
@@ -33,6 +34,10 @@ function getAuthSession(req: Request): AuthSession {
   return req.session as AuthSession;
 }
 
+// --------------------------------------------------
+// Start Google OAuth
+// --------------------------------------------------
+
 authRouter.get("/google", (req, res, next) => {
   const session = getAuthSession(req);
   const state = randomBytes(32).toString("hex");
@@ -42,6 +47,7 @@ authRouter.get("/google", (req, res, next) => {
 
   session.save((error) => {
     if (error) {
+      console.error("OAuth start session save failed:", error.message);
       next(error);
       return;
     }
@@ -53,9 +59,21 @@ authRouter.get("/google", (req, res, next) => {
       prompt: "select_account",
     });
 
+    // Diagnostic logging: do not log the actual OAuth state.
+    console.log("OAuth start diagnostics:", {
+      sessionID: req.sessionID,
+      hasSession: Boolean(req.session),
+      hasStoredState: Boolean(session.oauthState),
+      hasExpiry: typeof session.oauthStateExpiresAt === "number",
+    });
+
     res.redirect(authorizationUrl);
   });
 });
+
+// --------------------------------------------------
+// Google OAuth callback
+// --------------------------------------------------
 
 authRouter.get("/google/callback", async (req, res, next) => {
   try {
@@ -68,7 +86,10 @@ authRouter.get("/google/callback", async (req, res, next) => {
       return;
     }
 
-    if (typeof code !== "string" || typeof returnedState !== "string") {
+    if (
+      typeof code !== "string" ||
+      typeof returnedState !== "string"
+    ) {
       res.status(400).send("Missing Google OAuth callback parameters.");
       return;
     }
@@ -77,6 +98,20 @@ authRouter.get("/google/callback", async (req, res, next) => {
     const expectedState = session.oauthState;
     const expiresAt = session.oauthStateExpiresAt;
 
+    // Diagnostic logging: never log state, cookies, or authorization code.
+    console.log("OAuth state diagnostics:", {
+      sessionID: req.sessionID,
+      hasSession: Boolean(req.session),
+      hasExpectedState: Boolean(expectedState),
+      hasExpiry: typeof expiresAt === "number",
+      isExpired:
+        typeof expiresAt === "number"
+          ? expiresAt <= Date.now()
+          : null,
+      returnedStatePresent: typeof returnedState === "string",
+    });
+
+    // Remove the one-time state from this session.
     delete session.oauthState;
     delete session.oauthStateExpiresAt;
 
@@ -90,6 +125,7 @@ authRouter.get("/google/callback", async (req, res, next) => {
         Buffer.from(returnedState),
       )
     ) {
+      console.warn("OAuth state validation failed.");
       res.status(400).send("Invalid or expired OAuth state. Please try again.");
       return;
     }
@@ -97,8 +133,11 @@ authRouter.get("/google/callback", async (req, res, next) => {
     // Persist removal of the one-time OAuth state before continuing.
     await new Promise<void>((resolve, reject) => {
       session.save((error) => {
-        if (error) reject(error);
-        else resolve();
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
       });
     });
 
@@ -128,7 +167,7 @@ authRouter.get("/google/callback", async (req, res, next) => {
       picture: payload.picture ?? null,
     };
 
-    // Rotate the session ID after authentication to mitigate session fixation.
+    // Rotate session ID after authentication.
     req.session.regenerate((regenerateError) => {
       if (regenerateError) {
         next(regenerateError);
@@ -144,6 +183,10 @@ authRouter.get("/google/callback", async (req, res, next) => {
           return;
         }
 
+        console.log("Google authentication successful.", {
+          hasAuthenticatedUser: Boolean(authenticatedSession.user),
+        });
+
         res.redirect(FRONTEND_URL);
       });
     });
@@ -151,6 +194,10 @@ authRouter.get("/google/callback", async (req, res, next) => {
     next(error);
   }
 });
+
+// --------------------------------------------------
+// Current authenticated user
+// --------------------------------------------------
 
 authRouter.get("/me", (req, res) => {
   const session = getAuthSession(req);
@@ -162,6 +209,10 @@ authRouter.get("/me", (req, res) => {
 
   res.json({ user: session.user });
 });
+
+// --------------------------------------------------
+// Logout
+// --------------------------------------------------
 
 authRouter.post("/logout", (req, res, next) => {
   req.session.destroy((error) => {
@@ -177,6 +228,8 @@ authRouter.post("/logout", (req, res, next) => {
       path: "/",
     });
 
-    res.status(200).json({ message: "Logged out successfully." });
+    res.status(200).json({
+      message: "Logged out successfully.",
+    });
   });
 });

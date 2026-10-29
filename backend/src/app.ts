@@ -16,6 +16,12 @@ import { env } from "./config/env.js";
 export const app = express();
 
 // --------------------------------------------------
+// Render reverse proxy
+// --------------------------------------------------
+
+app.set("trust proxy", 1);
+
+// --------------------------------------------------
 // Redis configuration
 // --------------------------------------------------
 
@@ -23,7 +29,6 @@ const redisUrl = env.REDIS_URL
   ? new URL(env.REDIS_URL)
   : null;
 
-// Log connection details without exposing credentials.
 console.log("Redis config:", {
   configured: Boolean(redisUrl),
   protocol: redisUrl?.protocol ?? "redis:",
@@ -31,8 +36,6 @@ console.log("Redis config:", {
   port: redisUrl?.port || env.REDIS_PORT,
 });
 
-// Create Redis client.
-// Upstash TLS connections must use a rediss:// URL.
 const sessionRedisClient = createClient({
   url:
     env.REDIS_URL ??
@@ -42,16 +45,13 @@ const sessionRedisClient = createClient({
   },
 });
 
-// Redis error handler.
 sessionRedisClient.on("error", (error) => {
   console.error("Session Redis error:", error.message);
 });
 
-// Connect to Redis before initializing sessions.
 try {
   await sessionRedisClient.connect();
 
-  // Verify the connection with a Redis command.
   const pingResponse = await sessionRedisClient.ping();
 
   console.log("Session Redis connected successfully.");

@@ -8,7 +8,7 @@ const envSchema = z.object({
   // Frontend URL used for OAuth redirects
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
 
-    // Redis
+  // Redis
   REDIS_URL: z.string().url().optional(),
   REDIS_HOST: z.string().default("127.0.0.1"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
@@ -61,8 +61,9 @@ const envSchema = z.object({
   // Application session
   SESSION_SECRET: z.string().min(32),
 
+  // Gemini
   GEMINI_API_KEY: z.string().min(1),
-GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
 
   // Bull Board admin access: comma-separated email addresses
   ADMIN_EMAILS: z.string().min(1),
@@ -72,6 +73,8 @@ GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
     .string()
     .url()
     .default("http://localhost:9200"),
+  ELASTICSEARCH_USERNAME: z.string().default("elastic"),
+  ELASTICSEARCH_PASSWORD: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
